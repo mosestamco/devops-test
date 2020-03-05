@@ -1,0 +1,130 @@
+---
+- hosts: localhost
+  connection: local
+  tasks:
+  
+  - name: Create Resource Group
+    azure_rm_resourcegroup:
+      name: "{{ResourceGroup_name}}"
+      location: "{{Region}}"
+      state: present
+      tags:
+           testing: testing
+           delete: never 
+    register: rg
+  - debug:
+      var: rg.state.name   
+  - name: Create Storage Account
+    azure_rm_storageaccount:
+      resource_group: "{{rg.state.name}}"
+      name: "{{StorageAccount_name}}"
+      type: "{{StorageAccount_type}}"
+      state: present
+      tags:
+          testing: testing
+    register: storageacc
+  - debug:
+      var: storageacc.state.name
+  - name:  Create Virtual Network
+    azure_rm_virtualnetwork:
+      resource_group: "{{rg.state.name}}"
+      name: "{{VirtualNetwork_name}}"
+      location: "{{Region}}"
+      state: present
+      address_prefixes_cidr: 192.168.0.0/16
+      tags:
+          testing: testing
+    register: vnet
+  - debug:
+      var: vnet.state.name
+  - name: Create  Subnet
+    azure_rm_subnet:
+      resource_group: "{{rg.state.name}}"
+      virtual_network_name: "{{vnet.state.name}}"
+      name: "{{Subnet_name}}"
+      address_prefix_cidr: "192.168.1.0/24"
+      state: present
+    register: subnet
+  - debug:
+      var: subnet.state.name
+  - name: Create Security Group
+    azure_rm_securitygroup:
+      resource_group: "{{rg.state.name}}"
+      name: mysecgroup
+      state: present
+      rules:
+        - name: AllowSSH
+          protocol: Tcp
+          destination_port_range: 22
+          access: Allow
+          priority: 100
+          direction: Inbound   
+    register: secgrp
+  - debug:
+      var: secgrp.state.name
+        
+        
+  - name: Create Public Ip address
+    azure_rm_publicipaddress:
+      resource_group: "{{rg.state.name}}"
+      location: "{{Region}}"
+      name: "{{PublicIP_name}}"
+      allocation_method: static
+      sku: Basic
+      state: present
+    register: pubip
+  - debug:
+      var: pubip.state.name
+        
+  - name: Create Network Interface
+    azure_rm_networkinterface:
+      name: "{{NetworkInterface_name}}"
+      resource_group: "{{rg.state.name}}"
+      virtual_network_name: "{{vnet.state.name}}"
+      subnet_name: "{{subnet.state.name}}"
+      private_ip_address: 192.168.1.15
+      private_ip_allocation_method: Static
+      os_type: Linux
+      security_group: mysecgroup
+      state: present
+      ip_configurations:
+        - name: ipconfig1
+          public_ip_address_name: "{{pubip.state.name}}"
+          primary: True
+    register: nic
+  - debug:
+      var: nic.state.name
+       
+   
+   
+               
+               
+  - name: Create Virtual Machine
+    azure_rm_virtualmachine:
+      resource_group: "{{rg.state.name}}"
+      location: "{{Region}}"
+      name: testvm001
+      vm_size: Standard_B1s
+      subnet_name: "{{subnet.state.name}}"
+      virtual_network_name: "{{vnet.state.name}}"
+      managed_disk_type: Standard_LRS
+      os_type: Linux
+      admin_username: mosesadmin
+      admin_password: Logicalisadmin@123       
+      network_interfaces: "{{nic.state.name}}"
+      storage_account_name: "{{storageacc.state.name}}"
+      os_disk_size_gb: 30
+      image:
+        offer: CentOS
+        publisher: OpenLogic
+        sku: '7.1'
+        version: latest
+    register: vm
+  - debug: 
+      var: vm.state.name
+             
+       
+       
+       
+          
+          
